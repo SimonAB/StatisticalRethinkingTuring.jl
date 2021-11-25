@@ -22,11 +22,12 @@ using DataFrames
 using Dagitty
 using Turing
 using StatsPlots
-using StatisticalRethinking
+using StatisticalRethinking, StructuralCausalModels
 using StatisticalRethinkingPlots
+using Cairo, Fontconfig
 using Logging
 
-default(labels=false)
+default(labels = false)
 Logging.disable_logging(Logging.Warn);
 # -
 
@@ -43,13 +44,13 @@ tw = rand(Normal(), N)
 
 # select top 10% of combined score
 s = nw .+ tw
-q = quantile(s, 1-p)
+q = quantile(s, 1 - p)
 selected = s .>= q
 cor(tw[selected], nw[selected])
 # -
 
-scatter(nw[.!selected], tw[.!selected]; xlab="newsworthiness", ylab="trustworthiness", label="not selected")
-scatter!(nw[selected], tw[selected]; label="selected")
+scatter(nw[.!selected], tw[.!selected]; xlab = "newsworthiness", ylab = "trustworthiness", label = "not selected")
+scatter!(nw[selected], tw[selected]; label = "selected")
 
 # # 6.1 Multicollinearity
 
@@ -87,11 +88,11 @@ coeftab_plot(m6_1_df)
 
 # Code 6.5
 
-scatter(m6_1_df.br, m6_1_df.bl; alpha=0.1)
+scatter(m6_1_df.br, m6_1_df.bl; alpha = 0.1)
 
 # Code 6.6
 
-@df m6_1_df density(:br + :bl; lw=2, xlab="sum of bl and br")
+@df m6_1_df density(:br + :bl; lw = 2, xlab = "sum of bl and br")
 
 # Code 6.7
 
@@ -114,14 +115,14 @@ std(m6_1_df.bl), std(m6_1_df.br), std(m6_1_df.bl + m6_1_df.br)
 # Code 6.8
 
 # +
-d = DataFrame(CSV.File("data/milk.csv", missingstring="NA"))
+d = DataFrame(CSV.File("data/milk.csv", missingstring = "NA"))
 
 # get rid of dots in column names
 rename!(n -> replace(n, "." => "_"), d)
 
-d[!,:K] = standardize(ZScoreTransform, d.kcal_per_g)
-d[!,:F] = standardize(ZScoreTransform, d.perc_fat)
-d[!,:L] = standardize(ZScoreTransform, d.perc_lactose);
+d[!, :K] = standardize(ZScoreTransform, d.kcal_per_g)
+d[!, :F] = standardize(ZScoreTransform, d.perc_fat)
+d[!, :L] = standardize(ZScoreTransform, d.perc_lactose);
 # -
 
 # Code 6.9
@@ -135,8 +136,8 @@ d[!,:L] = standardize(ZScoreTransform, d.perc_lactose);
     K ~ MvNormal(μ, σ)
 end
 
-m6_3 = sample(model_m6_3(d.F, d.K), NUTS(), 1000)
-m6_3_df = DataFrame(m6_3)
+m6_3 = sample(model_m6_3(d.F, d.K), NUTS(500, 0.65), 1000)
+m6_3_df = DataFrame(m6_3);
 
 @model function model_m6_4(L, K)
     a ~ Normal(0, 0.2)
@@ -147,10 +148,13 @@ m6_3_df = DataFrame(m6_3)
 end
 
 m6_4 = sample(model_m6_4(d.L, d.K), NUTS(), 1000)
-m6_4_df = DataFrame(m6_4)
+m6_4_df = DataFrame(m6_4);
 
 precis(m6_3_df)
 precis(m6_4_df)
+
+coeftab_plot(m6_3_df)
+coeftab_plot(m6_4_df)
 # -
 
 # Code 6.10
@@ -166,20 +170,20 @@ precis(m6_4_df)
 end
 
 m6_5 = sample(model_m6_5(d.F, d.L, d.K), NUTS(), 1000)
-m6_5_df = DataFrame(m6_5)
+m6_5_df = DataFrame(m6_5);
 precis(m6_5_df)
 # -
 
 # Code 6.11
 
-@df d corrplot([:kcal_per_g :perc_fat :perc_lactose]; seriestype=:scatter, bins=10, grid=false)
+@df d corrplot([:kcal_per_g :perc_fat :perc_lactose]; seriestype = :scatter, bins = 10, grid = false)
 
 # Code 6.12
 
 # +
 # get mean stderr for linear model's scale
 function stderr_for_r(r)
-    σ = sqrt(1-r^2)*var(d.perc_fat)
+    σ = sqrt(1 - r^2) * var(d.perc_fat)
     fat_scaled = r .* d.perc_fat
     stderr_x = [
         begin
@@ -189,14 +193,14 @@ function stderr_for_r(r)
             m = lm(X, d.kcal_per_g)
             stderror(m)[2]
         end
-        for _ in 1:100
+        for _ = 1:100
     ]
     s = mean(stderr_x)
 end
 
-r_seq = range(0, 0.99; step=0.01)
+r_seq = range(0, 0.99; step = 0.01)
 s = stderr_for_r.(r_seq)
-plot(r_seq, s; lw=2, xlab="correlation")
+plot(r_seq, s; lw = 2, xlab = "correlation")
 # -
 
 # # 6.2 Post-treatment bias
@@ -208,8 +212,8 @@ Random.seed!(70)
 # number of plants
 N = 100
 h0 = rand(Normal(10, 2), N)
-treatment = repeat(0:1, inner=div(N, 2))
-fungus = [rand(Binomial(1, 0.5 - treat*0.4)) for treat in treatment]
+treatment = repeat(0:1, inner = div(N, 2))
+fungus = [rand(Binomial(1, 0.5 - treat * 0.4)) for treat in treatment]
 h1 = h0 .+ rand(MvNormal(5 .- 3 .* fungus, 1))
 
 d = DataFrame(:h0 => h0, :h1 => h1, :treatment => treatment, :fungus => fungus)
@@ -232,7 +236,7 @@ precis(DataFrame(:sim_p => sim_p))
 end
 
 m6_6 = sample(model_m6_6(d.h0, d.h1), NUTS(), 1000)
-m6_6_df = DataFrame(m6_6)
+m6_6_df = DataFrame(m6_6);
 precis(m6_6_df)
 # -
 
@@ -244,14 +248,15 @@ precis(m6_6_df)
     bt ~ Normal(0, 0.5)
     bf ~ Normal(0, 0.5)
     σ ~ Exponential(1)
-    p = @. a + bt*treatment + bf*fungus
+    p = @. a + bt * treatment + bf * fungus
     μ = h0 .* p
     h1 ~ MvNormal(μ, σ)
 end
 
 m6_7 = sample(model_m6_7(d.h0, d.treatment, d.fungus, d.h1), NUTS(), 1000)
-m6_7_df = DataFrame(m6_7)
+m6_7_df = DataFrame(m6_7);
 precis(m6_7_df)
+coeftab_plot(m6_7_df)
 # -
 
 # Code 6.17
@@ -261,14 +266,15 @@ precis(m6_7_df)
     a ~ LogNormal(0, 0.2)
     bt ~ Normal(0, 0.5)
     σ ~ Exponential(1)
-    p = @. a + bt*treatment
+    p = @. a + bt * treatment
     μ = h0 .* p
     h1 ~ MvNormal(μ, σ)
 end
 
 m6_8 = sample(model_m6_8(d.h0, d.treatment, d.h1), NUTS(), 1000)
-m6_8_df = DataFrame(m6_8)
+m6_8_df = DataFrame(m6_8);
 precis(m6_8_df)
+coeftab_plot(m6_8_df)
 # -
 
 # Code 6.18
@@ -287,15 +293,15 @@ Random.seed!(70)
 # number of plants
 N = 1000
 h0 = rand(Normal(10, 2), N)
-treatment = repeat(0:1, inner=div(N, 2))
+treatment = repeat(0:1, inner = div(N, 2))
 M = rand(Bernoulli(), N)
 fungus = [
-    rand(Binomial(1, 0.5 - treat*0.4 + 0.4 * m))
+    rand(Binomial(1, 0.5 - treat * 0.4 + 0.4 * m))
     for (treat, m) ∈ zip(treatment, M)
 ]
 h1 = h0 .+ rand(MvNormal(5 .+ 3 .* M, 1))
 
-d2 = DataFrame(:h0 => h0, :h1 => h1, :treatment => treatment, :fungus => fungus)
+d2 = DataFrame(:h0 => h0, :h1 => h1, :treatment => treatment, :fungus => fungus);
 precis(d2)
 # -
 
@@ -309,25 +315,25 @@ precis(DataFrame(m6_8))
 
 # Code 6.21
 
-d = sim_happiness(seed=1977, n_years=1000)
+d = sim_happiness(seed = 1977, n_years = 1000)
 precis(d)
 
 # +
-d_m = d[d.married .== 1,[:age,:happiness]]
-d_u = d[d.married .== 0,[:age,:happiness]]
+d_m = d[d.married.==1, [:age, :happiness]]
+d_u = d[d.married.==0, [:age, :happiness]]
 
-scatter(d_m.age, d_m.happiness; label="married", xlab="age", ylab="happiness")
-scatter!(d_u.age, d_u.happiness; c=:white)
+scatter(d_m.age, d_m.happiness; label = "married", xlab = "age", ylab = "happiness")
+scatter!(d_u.age, d_u.happiness; c = :white)
 # -
 
 # Code 6.22
 
-d2 = d[d.age .> 17,:]
-d2[!,:A] = @. (d2.age - 18) / (65-18);
+d2 = d[d.age.>17, :]
+d2[!, :A] = @. (d2.age - 18) / (65 - 18);
 
 # Code 6.23
 
-d2[!,:mid] = d2.married .+ 1;
+d2[!, :mid] = d2.married .+ 1;
 
 # +
 @model function model_m6_9(mid, A, happiness)
@@ -339,7 +345,7 @@ d2[!,:mid] = d2.married .+ 1;
 end
 
 m6_9 = sample(model_m6_9(d2.mid, d2.A, d2.happiness), NUTS(), 1000)
-m6_9_df = DataFrame(m6_9)
+m6_9_df = DataFrame(m6_9);
 precis(m6_9_df)
 # -
 
@@ -365,15 +371,15 @@ N = 200
 b_GP = 1
 b_GC = 0
 b_PC = 1
-b_U = 2;
+b_U = 2
 
 # Code 6.26
 
-Random.seed!(6)
+Random.seed!(42)
 U = 2 .* rand(Bernoulli(), N) .- 1
 G = rand(Normal(), N)
-P = rand(MvNormal(@. b_GP*G + b_U*U))
-C = rand(MvNormal(@. b_PC*P + b_GC*G + b_U*U))
+P = rand(MvNormal(@. b_GP * G + b_U * U))
+C = rand(MvNormal(@. b_PC * P + b_GC * G + b_U * U))
 d = DataFrame(:C => C, :P => P, :G => G, :U => U);
 
 # Code 6.27
@@ -383,13 +389,13 @@ d = DataFrame(:C => C, :P => P, :G => G, :U => U);
     a ~ Normal()
     b_PC ~ Normal()
     b_GC ~ Normal()
-    μ = @. a + b_PC*P + b_GC*G
+    μ = @. a + b_PC * P + b_GC * G
     σ ~ Exponential(1)
     C ~ MvNormal(μ, σ)
 end
 
 m6_11 = sample(model_m6_11(d.P, d.G, d.C), NUTS(), 1000)
-m6_11_df = DataFrame(m6_11)
+m6_11_df = DataFrame(m6_11);
 precis(m6_11_df)
 # -
 
@@ -397,18 +403,20 @@ precis(m6_11_df)
 
 # +
 @model function model_m6_12(P, G, U, C)
-    a ~ Normal()
+    a ~ Normal(0, 1)
     b_PC ~ Normal()
     b_GC ~ Normal()
     b_U ~ Normal()
-    μ = @. a + b_PC*P + b_GC*G + b_U*U
+    μ = @. a + b_PC * P + b_GC * G + b_U * U
     σ ~ Exponential(1)
     C ~ MvNormal(μ, σ)
 end
 
 m6_12 = sample(model_m6_12(d.P, d.G, d.U, d.C), NUTS(), 1000)
-m6_12_df = DataFrame(m6_12)
+m6_12_df = DataFrame(m6_12);
 precis(m6_12_df)
+
+# NOTE: something not quite right here, as we should obtain the same values as the parameters used for generating the data. Does Turing scale by default?
 # -
 
 # # 6.4 Confronting confounding
@@ -424,6 +432,17 @@ dag_61 = Dagitty.DAG(
 )
 
 all_backdoor_adjustment_sets(dag_61, :X, :Y)
+
+dag_61 = StructuralCausalModels.DAG("dag_61",
+    "DAG(
+    U ~ A,
+    C ~ A,
+    B ~ U + C,
+    X ~ U,
+    Y ~ X + C
+    )"
+)
+StructuralCausalModels.adjustment_sets(dag_61, :X, :Y)
 # -
 
 # Code 6.30
@@ -437,3 +456,15 @@ dag_62 = Dagitty.DAG(
 all_backdoor_adjustment_sets(dag_62, :W, :D)
 
 implied_conditional_independencies_min(dag_62)
+
+#  StructuralCausalModels version:
+dag_62b = StructuralCausalModels.DAG("dag_62b",
+    "DAG(
+        A ~ S,
+        M ~ A+S,
+        W ~ S,
+        D ~ A + M + W
+    )"
+)
+basis_set(dag_62b)
+adjustment_sets(dag_62b, :W, :D)

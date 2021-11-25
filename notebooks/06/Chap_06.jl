@@ -62,6 +62,7 @@ leg_prop = rand(Uniform(0.4, 0.5), N)
 leg_left = leg_prop .* height .+ rand(Normal(0, 0.02), N)
 leg_right = leg_prop .* height .+ rand(Normal(0, 0.02), N)
 d = DataFrame(:height => height, :leg_left => leg_left, :leg_right => leg_right);
+first(d, 6)
 
 # Code 6.3
 
@@ -76,7 +77,7 @@ d = DataFrame(:height => height, :leg_left => leg_left, :leg_right => leg_right)
 end
 
 m6_1 = sample(model_m6_1(d.leg_left, d.leg_right, d.height), NUTS(), 1000)
-m6_1_df = DataFrame(m6_1)
+m6_1_df = DataFrame(m6_1);
 precis(m6_1_df)
 # -
 
@@ -104,7 +105,7 @@ scatter(m6_1_df.br, m6_1_df.bl; alpha=0.1)
 end
 
 m6_2 = sample(model_m6_2(d.leg_left, d.height), NUTS(), 1000)
-m6_2_df = DataFrame(m6_2)
+m6_2_df = DataFrame(m6_2);
 precis(m6_2_df)
 # -
 
@@ -113,7 +114,7 @@ std(m6_1_df.bl), std(m6_1_df.br), std(m6_1_df.bl + m6_1_df.br)
 # Code 6.8
 
 # +
-d = DataFrame(CSV.File("data/milk.csv",  missingstring="NA"))
+d = DataFrame(CSV.File("data/milk.csv", missingstring="NA"))
 
 # get rid of dots in column names
 rename!(n -> replace(n, "." => "_"), d)
@@ -289,7 +290,7 @@ h0 = rand(Normal(10, 2), N)
 treatment = repeat(0:1, inner=div(N, 2))
 M = rand(Bernoulli(), N)
 fungus = [
-    rand(Binomial(1, 0.5 - treat*0.4 + 0.4 * m)) 
+    rand(Binomial(1, 0.5 - treat*0.4 + 0.4 * m))
     for (treat, m) ∈ zip(treatment, M)
 ]
 h1 = h0 .+ rand(MvNormal(5 .+ 3 .* M, 1))
@@ -436,5 +437,3 @@ dag_62 = Dagitty.DAG(
 all_backdoor_adjustment_sets(dag_62, :W, :D)
 
 implied_conditional_independencies_min(dag_62)
-
-
